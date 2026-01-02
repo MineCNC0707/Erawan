@@ -625,20 +625,25 @@ function loadPurchases() {
     .slice(0, 50);
   tbody.innerHTML = list.length
     ? list
-        .map(
-          (p) =>
-            `<tr><td>${Utils.formatDate(p.time)}</td><td>${
+        .map((p) => {
+          return `<tr>
+            <td data-label="时间">${Utils.formatDate(p.time)}</td>
+            <td data-label="仓库">${
               DataManager.storeroomNames[p.storeroomId]
-            }</td><td>${p.productName}</td><td>${p.quantity} ${
-              p.unitStr || "个"
-            }</td><td>${Utils.formatCurrency(
-              p.price
-            )}</td><td>${Utils.formatCurrency(
+            }</td>
+            <td data-label="商品">${p.productName}</td>
+            <td data-label="数量"><b>${p.quantity}</b> ${p.unitStr || "个"}</td>
+            <td data-label="单价">${Utils.formatCurrency(p.price)} /${
+            p.unitStr || "个"
+          }</td>
+            <td data-label="总额" style="color:#1677ff;font-weight:600">${Utils.formatCurrency(
               p.total
-            )}</td><td><button class="btn btn-xs btn-outline" onclick="deletePurchase(${
+            )}</td>
+            <td data-label="操作"><button class="btn btn-xs btn-outline" onclick="deletePurchase(${
               p.id
-            })">删除</button></td></tr>`
-        )
+            })">删除</button></td>
+          </tr>`;
+        })
         .join("")
     : `<tr><td colspan="7" class="text-center">暂无记录</td></tr>`;
 }
@@ -650,9 +655,12 @@ function onOutboundProductChange(product) {
   document.getElementById("outboundQuantityInput").value = 1;
   const unitSelect = document.getElementById("outboundUnitType");
   const mpInput = document.getElementById("outboundUnitMultiplier");
+  const priceInput = document.getElementById("outboundSellingPrice");
+
   const unit = product.unitName || "个";
   const boxUnit = product.boxUnitName || "箱";
   const boxSize = parseInt(product.boxSize) || 1;
+
   let html = `<option value="piece">${unit}</option>`;
   if (boxSize > 1) {
     html += `<option value="box">${boxUnit} (含 ${boxSize} ${unit})</option>`;
@@ -662,24 +670,36 @@ function onOutboundProductChange(product) {
   unitSelect.value = "piece";
   mpInput.value = 1;
   mpInput.readOnly = true;
+
+  // 默认填充成本价 (按单个)
+  priceInput.value = product.costPrice || 0;
 }
+
 function onOutboundUnitChange() {
   const type = document.getElementById("outboundUnitType").value;
   const mpInput = document.getElementById("outboundUnitMultiplier");
+  const priceInput = document.getElementById("outboundSellingPrice");
   const hiddenId = document.querySelector(
     "#outboundSearchWrapper input[type='hidden']"
   ).value;
   const product = DataManager.products.find((p) => p.id == hiddenId);
   if (!product) return;
+
   if (type === "piece") {
     mpInput.value = 1;
     mpInput.readOnly = true;
+    priceInput.value = product.costPrice || 0;
   } else if (type === "box") {
-    mpInput.value = product.boxSize || 1;
+    const bSize = product.boxSize || 1;
+    mpInput.value = bSize;
     mpInput.readOnly = true;
+    // 如果选了箱，建议售价自动乘以箱规
+    priceInput.value = (product.costPrice || 0) * bSize;
   } else {
     mpInput.readOnly = false;
     mpInput.focus();
+    // 自定义单位，保持单价为基础，或者用户自己填
+    priceInput.value = product.costPrice || 0;
   }
 }
 function adjQty(delta) {
@@ -702,6 +722,9 @@ function addOutboundItem() {
     parseInt(document.getElementById("outboundUnitMultiplier").value) || 1;
   const inputQty =
     parseInt(document.getElementById("outboundQuantityInput").value) || 1;
+  const sellingPrice =
+    parseFloat(document.getElementById("outboundSellingPrice").value) || 0;
+
   const deductionQty = inputQty * multiplier;
   const currentStock = product.storerooms[storeId] || 0;
   const cartUsed = currentOutboundItems
@@ -710,10 +733,12 @@ function addOutboundItem() {
   if (currentStock - cartUsed < deductionQty) {
     return Utils.showToast("库存不足！", "error");
   }
+
   let displayUnit = "";
   if (unitType === "piece") displayUnit = product.unitName || "个";
   else if (unitType === "box") displayUnit = product.boxUnitName || "箱";
   else displayUnit = `自定义(x${multiplier})`;
+
   currentOutboundItems.push({
     id: Date.now() + Math.random(),
     productId,
@@ -722,13 +747,16 @@ function addOutboundItem() {
     inputQty,
     deductionQty,
     unitName: displayUnit,
-    estimatedValue: deductionQty * (product.costPrice || 0),
+    sellingPrice: sellingPrice, // 记录单价 (基于所选单位)
+    totalSales: sellingPrice * inputQty, // 记录该行总售价
+    estimatedValue: deductionQty * (product.costPrice || 0), // 依旧记录成本以计算毛利（后台保留）
   });
   updateOutboundItemsDisplay();
   document.querySelector("#outboundSearchWrapper input[type='text']").value =
     "";
   hiddenInput.value = "";
   document.getElementById("outboundQuantityInput").value = 1;
+  document.getElementById("outboundSellingPrice").value = "";
   document.querySelector("#outboundSearchWrapper input[type='text']").focus();
   Utils.showToast("已加入清单");
 }
@@ -752,12 +780,20 @@ function updateOutboundItemsDisplay() {
           item.productName
         }</strong><div><span class="badge">${item.inputQty} ${
             item.unitName
-          }</span></div><div style="font-size:10px;color:#666">从 ${
-            DataManager.storeroomNames[item.storeroomId]
-          }</div></div>
-        <div style="color:#ff4d4f;cursor:pointer" onclick="removeOutboundItem(${
-          item.id
-        })"><i class="ri-close-circle-fill"></i></div>
+          }</span> <span style="font-size:12px;color:#666">@ ${Utils.formatCurrency(
+            item.sellingPrice
+          )}</span></div>
+        <div style="font-size:10px;color:#666">从 ${
+          DataManager.storeroomNames[item.storeroomId]
+        }</div></div>
+        <div style="text-align:right">
+          <div style="font-weight:600;color:#1677ff">${Utils.formatCurrency(
+            item.totalSales
+          )}</div>
+          <div style="color:#ff4d4f;cursor:pointer;margin-top:4px" onclick="removeOutboundItem(${
+            item.id
+          })"><i class="ri-close-circle-fill"></i></div>
+        </div>
     </div>`
         )
         .join("")
@@ -787,7 +823,9 @@ function confirmOutbound() {
       quantity: item.inputQty,
       unitName: item.unitName,
       deductedQty: item.deductionQty,
-      totalValue: item.estimatedValue,
+      sellingPrice: item.sellingPrice,
+      totalSales: item.totalSales,
+      totalValue: item.estimatedValue, // cost value
       time,
       remark,
     });
@@ -807,20 +845,35 @@ function loadOutboundHistory() {
     .slice(0, 50);
   document.getElementById("outboundTableBody").innerHTML = list.length
     ? list
-        .map(
-          (s) =>
-            `<tr><td>${Utils.formatDate(s.time)}</td><td>${
+        .map((s) => {
+          // 兼容旧数据，如果没有 totalSales，就显示成本 value
+          const salesAmount =
+            s.totalSales !== undefined ? s.totalSales : s.totalValue;
+          const unitPrice =
+            s.sellingPrice !== undefined
+              ? s.sellingPrice
+              : s.totalValue / (s.quantity || 1);
+
+          return `<tr>
+            <td data-label="时间">${Utils.formatDate(s.time)}</td>
+            <td data-label="仓库">${
               DataManager.storeroomNames[s.storeroomId]
-            }</td><td>${s.productName}</td><td>${s.quantity} ${
-              s.unitName
-            }</td><td>${
-              s.remark || "-"
-            }</td><td><button class="btn btn-xs btn-outline" onclick="deleteOutbound(${
+            }</td>
+            <td data-label="商品">${s.productName}</td>
+            <td data-label="数量"><b>${s.quantity}</b> ${s.unitName}</td>
+            <td data-label="出货单价" style="color:#666">${Utils.formatCurrency(
+              unitPrice
+            )}</td>
+            <td data-label="销售总额" style="color:#f97316;font-weight:600">${Utils.formatCurrency(
+              salesAmount
+            )}</td>
+            <td data-label="操作"><button class="btn btn-xs btn-outline" onclick="deleteOutbound(${
               s.id
-            })">撤销</button></td></tr>`
-        )
+            })">撤销</button></td>
+          </tr>`;
+        })
         .join("")
-    : `<tr><td colspan="6" class="text-center">暂无记录</td></tr>`;
+    : `<tr><td colspan="7" class="text-center">暂无记录</td></tr>`;
 }
 function deleteOutbound(id) {
   if (!confirm("撤销出货将恢复库存，确定吗？")) return;
@@ -922,10 +975,11 @@ function renderTrendChart(range) {
         .filter((x) => new Date(x.time).toDateString() === d.toDateString())
         .reduce((a, b) => a + b.total, 0)
     );
+    // 出货图表改为显示销售额
     outData.push(
       DataManager.outbound
         .filter((x) => new Date(x.time).toDateString() === d.toDateString())
-        .reduce((a, b) => a + (b.totalValue || 0), 0)
+        .reduce((a, b) => a + (b.totalSales || b.totalValue || 0), 0)
     );
   }
   if (chartInstance) chartInstance.destroy();
@@ -934,8 +988,8 @@ function renderTrendChart(range) {
     data: {
       labels,
       datasets: [
-        { label: "出货 (Out)", data: outData, backgroundColor: "#fa8c16" },
-        { label: "进货 (In)", data: inData, backgroundColor: "#1677ff" },
+        { label: "出货 (销售额)", data: outData, backgroundColor: "#fa8c16" },
+        { label: "进货 (成本)", data: inData, backgroundColor: "#1677ff" },
       ],
     },
     options: { responsive: true, maintainAspectRatio: false },
@@ -944,9 +998,14 @@ function renderTrendChart(range) {
 function loadReports() {
   renderTrendChart("week");
   const now = new Date();
+  // 优先使用 totalSales (销售额)，如果没有则回退到 cost value (旧数据)
   const todayOut = DataManager.outbound
     .filter((x) => new Date(x.time).toDateString() === now.toDateString())
-    .reduce((a, b) => a + (b.totalValue || 0), 0);
+    .reduce(
+      (a, b) =>
+        a + (b.totalSales !== undefined ? b.totalSales : b.totalValue || 0),
+      0
+    );
   const todayIn = DataManager.purchases
     .filter((x) => new Date(x.time).toDateString() === now.toDateString())
     .reduce((a, b) => a + b.total, 0);
@@ -1125,6 +1184,56 @@ function showCurrentStock(name) {
     ? `当前库存: ${Utils.formatStockDisplay(p.storerooms[store], p)}`
     : "";
 }
+
+// 清零功能
+function clearCurrentStock() {
+  const storeId = parseInt(document.getElementById("manageStoreroomId").value);
+  const hiddenInput = document.querySelector(
+    "#manageSearchWrapper input[type='hidden']"
+  );
+
+  if (!hiddenInput || !hiddenInput.value) {
+    return Utils.showToast("请先选择商品", "error");
+  }
+
+  const pid = parseInt(hiddenInput.value);
+  const p = DataManager.products.find((x) => x.id === pid);
+
+  if (!p) return;
+
+  const currentQty = p.storerooms[storeId] || 0;
+  const storeName = DataManager.storeroomNames[storeId];
+
+  if (
+    confirm(
+      `确定要将 【${storeName}】 的 【${p.name}】 库存清零吗？\n当前数量: ${currentQty}`
+    )
+  ) {
+    // 逻辑：删除该仓库下的所有批次记录，或者添加一个负数批次抵消。
+    // 为了数据纯净，这里选择保留历史记录，添加修正批次
+    if (currentQty !== 0) {
+      p.batches.push({
+        storeId: storeId,
+        qty: -currentQty,
+        cost: p.costPrice, // Cost doesn't matter for zeroing out, keeps balance
+        date: new Date().toISOString(),
+        remark: "库存清零(重置)",
+      });
+      Utils.updateTotalStock(p);
+      DataManager.saveAll();
+      refreshAllViews();
+      // 清空输入框
+      document.querySelector("#manageSearchWrapper input[type='text']").value =
+        "";
+      hiddenInput.value = "";
+      document.getElementById("currentStockDisplay").innerHTML = "";
+      Utils.showToast("库存已重置为 0");
+    } else {
+      Utils.showToast("当前库存已经是 0", "warning");
+    }
+  }
+}
+
 function manualUpdateStock(e) {
   e.preventDefault();
   const store = parseInt(document.getElementById("manageStoreroomId").value);
@@ -1151,6 +1260,7 @@ function manualUpdateStock(e) {
   DataManager.saveAll();
   document.getElementById("manageQuantity").value = "";
   document.querySelector("#manageSearchWrapper input[type='text']").value = "";
+  document.getElementById("currentStockDisplay").innerHTML = "";
   refreshAllViews();
   Utils.showToast("库存已更新");
 }

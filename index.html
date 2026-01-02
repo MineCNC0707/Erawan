@@ -96,14 +96,14 @@
               <div class="stat-card orange">
                 <div class="icon-box"><i class="ri-logout-box-r-line"></i></div>
                 <div class="stat-info">
-                  <h4>今日出货</h4>
+                  <h4>今日出货 (销售额)</h4>
                   <div class="value" id="todayOut">RM 0.00</div>
                 </div>
               </div>
               <div class="stat-card blue">
                 <div class="icon-box"><i class="ri-download-2-line"></i></div>
                 <div class="stat-info">
-                  <h4>今日进货</h4>
+                  <h4>今日进货 (成本)</h4>
                   <div class="value" id="todayIn">RM 0.00</div>
                 </div>
               </div>
@@ -112,14 +112,14 @@
                   <i class="ri-calendar-check-line"></i>
                 </div>
                 <div class="stat-info">
-                  <h4>本月累计出货</h4>
+                  <h4>本月累计销售</h4>
                   <div class="value" id="monthOut">RM 0.00</div>
                 </div>
               </div>
               <div class="stat-card green">
                 <div class="icon-box"><i class="ri-safe-2-line"></i></div>
                 <div class="stat-info">
-                  <h4>库存总值</h4>
+                  <h4>库存总值 (成本)</h4>
                   <div class="value" id="stockValue">RM 0.00</div>
                 </div>
               </div>
@@ -208,6 +208,15 @@
                           id="outboundUnitMultiplier"
                           value="1" />
                       </div>
+                      <!-- 新增：出货价输入 -->
+                      <div class="form-group">
+                        <label>出货单价 (RM)</label>
+                        <input
+                          type="number"
+                          id="outboundSellingPrice"
+                          step="0.01"
+                          placeholder="0.00" />
+                      </div>
                       <div class="form-group">
                         <label>数量</label>
                         <div class="number-input-group">
@@ -241,7 +250,7 @@
 
                 <div class="card mt-4">
                   <div class="card-header">
-                    <h3>最近记录</h3>
+                    <h3>最近出货记录</h3>
                     <div class="search-box">
                       <i class="ri-search-line"></i>
                       <input
@@ -258,7 +267,8 @@
                           <th>仓库</th>
                           <th>商品</th>
                           <th>数量</th>
-                          <th>备注</th>
+                          <th>出货单价</th>
+                          <th>销售总额</th>
                           <th>操作</th>
                         </tr>
                       </thead>
@@ -390,7 +400,7 @@
                       <th>时间</th>
                       <th>仓库</th>
                       <th>商品</th>
-                      <th>数量(单位)</th>
+                      <th>数量 (箱/个)</th>
                       <th>单价</th>
                       <th>总额</th>
                       <th>操作</th>
@@ -529,8 +539,14 @@
                       placeholder="如: 破损/盘点" />
                   </div>
                   <div class="form-group action-col">
-                    <label>&nbsp;</label
-                    ><button type="submit" class="btn btn-success">确认</button>
+                    <label>&nbsp;</label>
+                    <button type="submit" class="btn btn-success">确认</button>
+                    <button
+                      type="button"
+                      class="btn btn-danger"
+                      onclick="clearCurrentStock()">
+                      清零
+                    </button>
                   </div>
                 </form>
               </div>

@@ -318,6 +318,7 @@ body {
   gap: 6px;
   font-size: 14px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 .btn:active {
   transform: scale(0.98);
@@ -333,6 +334,10 @@ body {
 .btn-danger {
   background: #fee2e2;
   color: var(--danger);
+  border-color: #fee2e2;
+}
+.btn-danger:hover {
+  background: #fecaca;
 }
 .btn-outline {
   background: #fff;
@@ -540,6 +545,8 @@ tr:hover td {
 }
 .action-col {
   flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
 }
 
 /* 数量加减组件 */
